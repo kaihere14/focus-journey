@@ -19,6 +19,7 @@ import { MapControlButton } from "./map-control-button";
 import { MapStyleModal } from "./map-style-modal";
 
 const DEFAULT_CENTER: [number, number] = [77.209, 28.6139];
+const START_ZOOM = 3.5;
 const ROUTE_SOURCE_ID = "focus-journey-route";
 const ROUTE_LAYER_ID = "focus-journey-route-line";
 
@@ -40,6 +41,7 @@ export type FocusMapHandle = {
   clearRoute: () => void;
   setLabelMode: (mode: LabelMode) => void;
   zoomToCurrentLocation: () => void;
+  resetToStart: () => void;
 };
 
 const CLUTTER_SYMBOL_PATTERN =
@@ -175,7 +177,7 @@ export const FocusMap = forwardRef<
         const map = mapRef.current;
         if (map) {
           markerRef.current?.setLngLat(nextCoords).addTo(map);
-          map.flyTo({ center: nextCoords, zoom: 3.5, duration: 1000 });
+          map.flyTo({ center: nextCoords, zoom: START_ZOOM, duration: 1000 });
         }
 
         try {
@@ -276,6 +278,12 @@ export const FocusMap = forwardRef<
       const coords = currentCoordsRef.current;
       if (!map || !coords) return;
       map.flyTo({ center: coords, zoom: 7, duration: 1200 });
+    },
+    resetToStart() {
+      const map = mapRef.current;
+      const coords = currentCoordsRef.current;
+      if (!map || !coords) return;
+      map.flyTo({ center: coords, zoom: START_ZOOM, duration: 1200 });
     },
   }));
 

@@ -55,6 +55,7 @@ export default function HomePage() {
 
   function handleClosePreview() {
     mapRef.current?.clearRoute();
+    mapRef.current?.resetToStart();
     setDestination(null);
     setRoute(null);
     setStep("idle");
