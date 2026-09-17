@@ -157,3 +157,48 @@
   background: #ffffff;
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6);
 }
+
+@keyframes map-loader-drive {
+  0% {
+    transform: translateX(-10%);
+  }
+  50% {
+    transform: translateX(10%);
+  }
+  100% {
+    transform: translateX(-10%);
+  }
+}
+
+@keyframes map-loader-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes map-loader-road {
+  to {
+    background-position: -48px 0;
+  }
+}
+
+.map-loader-car {
+  animation:
+    map-loader-drive 1.6s ease-in-out infinite,
+    map-loader-bounce 0.3s ease-in-out infinite;
+}
+
+.map-loader-road {
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.6) 0px,
+    rgba(255, 255, 255, 0.6) 16px,
+    transparent 16px,
+    transparent 32px
+  );
+  animation: map-loader-road 0.5s linear infinite;
+}

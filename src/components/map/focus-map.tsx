@@ -17,6 +17,7 @@ import {
 } from "@/config/mapbox";
 import { MapControlButton } from "./map-control-button";
 import { MapStyleModal } from "./map-style-modal";
+import { MapLoader } from "./map-loader";
 
 const DEFAULT_CENTER: [number, number] = [77.209, 28.6139];
 const START_ZOOM = 3.5;
@@ -119,9 +120,11 @@ export const FocusMap = forwardRef<
   const labelModeRef = useRef<LabelMode>("minimal");
   const routeDataRef = useRef<GeoJSON.Feature | null>(null);
   const destinationCoordsRef = useRef<[number, number] | null>(null);
+  const mapReadyRef = useRef(false);
   const [styleKey, setStyleKey] = useState<MapboxStyleKey>("satellite");
   const [labelsEnabled, setLabelsEnabled] = useState(false);
   const [styleModalOpen, setStyleModalOpen] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -145,6 +148,11 @@ export const FocusMap = forwardRef<
       if (destinationCoordsRef.current) {
         destinationMarkerRef.current?.setLngLat(destinationCoordsRef.current);
       }
+    });
+
+    map.on("load", () => {
+      mapReadyRef.current = true;
+      setMapReady(true);
     });
 
     const markerEl = document.createElement("div");
@@ -214,14 +222,14 @@ export const FocusMap = forwardRef<
     setLabelsEnabled(next);
     labelModeRef.current = next ? "detailed" : "minimal";
     const map = mapRef.current;
-    if (map) applyLabelMode(map, labelModeRef.current);
+    if (map && mapReadyRef.current) applyLabelMode(map, labelModeRef.current);
   }
 
   useImperativeHandle(ref, () => ({
     async showRoute(destination) {
       const map = mapRef.current;
       const origin = currentCoordsRef.current;
-      if (!map || !origin) return null;
+      if (!map || !origin || !mapReadyRef.current) return null;
 
       destinationMarkerRef.current?.setLngLat(destination.center).addTo(map);
       destinationCoordsRef.current = destination.center;
@@ -260,6 +268,7 @@ export const FocusMap = forwardRef<
       }
     },
     clearRoute() {
+      if (!mapReadyRef.current) return;
       const map = mapRef.current;
       destinationMarkerRef.current?.remove();
       destinationCoordsRef.current = null;
@@ -271,18 +280,18 @@ export const FocusMap = forwardRef<
     setLabelMode(mode) {
       labelModeRef.current = mode;
       const map = mapRef.current;
-      if (map) applyLabelMode(map, mode);
+      if (map && mapReadyRef.current) applyLabelMode(map, mode);
     },
     zoomToCurrentLocation() {
       const map = mapRef.current;
       const coords = currentCoordsRef.current;
-      if (!map || !coords) return;
+      if (!map || !coords || !mapReadyRef.current) return;
       map.flyTo({ center: coords, zoom: 7, duration: 1200 });
     },
     resetToStart() {
       const map = mapRef.current;
       const coords = currentCoordsRef.current;
-      if (!map || !coords) return;
+      if (!map || !coords || !mapReadyRef.current) return;
       map.flyTo({ center: coords, zoom: START_ZOOM, duration: 1200 });
     },
   }));
@@ -340,6 +349,8 @@ export const FocusMap = forwardRef<
           </button>
         </div>
       </div>
+
+      <MapLoader visible={!mapReady} />
     </div>
   );
 });
