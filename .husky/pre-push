@@ -1,4 +1,5 @@
 echo "Typechecking..." && bun run typecheck || { echo "Push blocked. Fix above, or: git push --no-verify"; exit 1; }
 echo "Linting..." && bun run lint || { echo "Push blocked. Fix above, or: git push --no-verify"; exit 1; }
 echo "Checking formatting..." && bun run format:check || { echo "Push blocked. Fix above, or: git push --no-verify"; exit 1; }
+echo "Running tests..." && bun run test || { echo "Push blocked. Fix above, or: git push --no-verify"; exit 1; }
 echo "Building..." && bun run build || { echo "Push blocked. Fix above, or: git push --no-verify"; exit 1; }
