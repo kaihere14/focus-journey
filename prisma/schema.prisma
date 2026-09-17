@@ -1,0 +1,43 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                   String   @id @default(cuid())
+  clerkUserId          String   @unique
+  currentLatitude      Float?
+  currentLongitude     Float?
+  currentLocationName  String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  travelHistory TravelHistory[]
+}
+
+model TravelHistory {
+  id                String    @id @default(cuid())
+  userId            String
+  fromLatitude      Float
+  fromLongitude     Float
+  fromLocationName  String
+  toLatitude        Float
+  toLongitude       Float
+  toLocationName    String
+  startedAt         DateTime
+  completedAt       DateTime
+  duration          Int
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
