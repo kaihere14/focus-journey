@@ -3,8 +3,7 @@ import type { VehicleKey } from "@/config/vehicles";
 const VEHICLE_SOUND_FILES: Record<VehicleKey, string> = {
   car: "/sounds/car-start.mp3",
   motorcycle: "/sounds/motorcycle-start.mp3",
-  bicycle: "/sounds/bicycle-start.mp3",
-  walking: "/sounds/walking-start.mp3",
+  truck: "/sounds/truck-start.mp3",
 };
 
 const WIND_SOUND_FILE = "/sounds/wind.mp3";
@@ -13,22 +12,19 @@ const TRAFFIC_SOUND_FILE = "/sounds/traffic.mp3";
 const WIND_VOLUME: Record<VehicleKey, number> = {
   car: 0.12,
   motorcycle: 0.22,
-  bicycle: 0.28,
-  walking: 0.16,
+  truck: 0.18,
 };
 
 const WIND_SYNTH_VOLUME: Record<VehicleKey, number> = {
   car: 0.05,
   motorcycle: 0.09,
-  bicycle: 0.1,
-  walking: 0.06,
+  truck: 0.08,
 };
 
 const TRAFFIC_VOLUME: Record<VehicleKey, number> = {
   car: 0.14,
   motorcycle: 0.2,
-  bicycle: 0.22,
-  walking: 0.18,
+  truck: 0.24,
 };
 
 let audioContext: AudioContext | null = null;
@@ -135,32 +131,23 @@ function playEngineStart(ctx: AudioContext, high: boolean) {
   });
 }
 
-function playBell(ctx: AudioContext) {
+function playTruckHorn(ctx: AudioContext) {
   playSweep(ctx, {
-    type: "sine",
-    freqStart: 1700,
-    freqEnd: 1650,
-    duration: 0.25,
-    gainPeak: 0.22,
+    type: "sawtooth",
+    freqStart: 90,
+    freqEnd: 85,
+    duration: 0.45,
+    gainPeak: 0.3,
+    filterFreq: 600,
   });
   playSweep(ctx, {
-    type: "sine",
-    freqStart: 2200,
-    freqEnd: 2150,
-    duration: 0.2,
-    gainPeak: 0.14,
+    type: "sawtooth",
+    freqStart: 120,
+    freqEnd: 115,
+    duration: 0.4,
+    gainPeak: 0.18,
+    filterFreq: 500,
     delay: 0.05,
-  });
-}
-
-function playFootstepTap(ctx: AudioContext) {
-  playSweep(ctx, {
-    type: "sine",
-    freqStart: 140,
-    freqEnd: 90,
-    duration: 0.15,
-    gainPeak: 0.2,
-    filterFreq: 400,
   });
 }
 
@@ -170,8 +157,7 @@ function playSynth(vehicle: VehicleKey) {
 
   if (vehicle === "car") playEngineStart(ctx, false);
   else if (vehicle === "motorcycle") playEngineStart(ctx, true);
-  else if (vehicle === "bicycle") playBell(ctx);
-  else playFootstepTap(ctx);
+  else playTruckHorn(ctx);
 }
 
 function playFile(path: string) {

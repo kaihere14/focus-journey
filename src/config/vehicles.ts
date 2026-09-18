@@ -1,13 +1,7 @@
-import {
-  Car,
-  Motorbike,
-  Bike,
-  Footprints,
-  type LucideIcon,
-} from "lucide-react";
+import { Car, Motorbike, Truck, type LucideIcon } from "lucide-react";
 import type { MapboxRoutingProfile } from "@/components/map/focus-map";
 
-export type VehicleKey = "car" | "motorcycle" | "bicycle" | "walking";
+export type VehicleKey = "car" | "motorcycle" | "truck";
 
 export type VehicleOption = {
   key: VehicleKey;
@@ -33,18 +27,11 @@ export const VEHICLE_OPTIONS: VehicleOption[] = [
     markerImage: "/vehicles/motorcycle.webp",
   },
   {
-    key: "bicycle",
-    label: "Bicycle",
-    icon: Bike,
-    profile: "cycling",
-    markerImage: "/vehicles/bicycle.webp",
-  },
-  {
-    key: "walking",
-    label: "Walking",
-    icon: Footprints,
-    profile: "walking",
-    markerImage: "/vehicles/walking.webp",
+    key: "truck",
+    label: "Truck",
+    icon: Truck,
+    profile: "driving",
+    markerImage: "/vehicles/truck.webp",
   },
 ];
 

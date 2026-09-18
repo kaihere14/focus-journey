@@ -29,8 +29,7 @@ export type AnalyticsResult = {
 const EMPTY_VEHICLE_BREAKDOWN: Record<Vehicle, number> = {
   CAR: 0,
   MOTORCYCLE: 0,
-  BICYCLE: 0,
-  WALKING: 0,
+  TRUCK: 0,
 };
 
 function getLocalParts(date: Date, timeZone: string) {

@@ -27,8 +27,7 @@ model User {
 enum Vehicle {
   CAR
   MOTORCYCLE
-  BICYCLE
-  WALKING
+  TRUCK
 }
 
 model TravelHistory {

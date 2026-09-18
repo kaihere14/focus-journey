@@ -5,8 +5,7 @@ import type { VehicleKey } from "@/config/vehicles";
 const VEHICLE_KEY_TO_ENUM: Record<VehicleKey, Vehicle> = {
   car: "CAR",
   motorcycle: "MOTORCYCLE",
-  bicycle: "BICYCLE",
-  walking: "WALKING",
+  truck: "TRUCK",
 };
 
 export function vehicleKeyToEnum(key: VehicleKey): Vehicle {

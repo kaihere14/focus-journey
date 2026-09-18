@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Car, Motorbike, Bike, Footprints, X } from "lucide-react";
+import { Car, Motorbike, Truck, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type AnalyticsRange = "daily" | "weekly" | "monthly" | "all";
@@ -11,7 +11,7 @@ type RecentJourney = {
   id: string;
   fromLocationName: string;
   toLocationName: string;
-  vehicle: "CAR" | "MOTORCYCLE" | "BICYCLE" | "WALKING";
+  vehicle: "CAR" | "MOTORCYCLE" | "TRUCK";
   distance: number;
   duration: number;
   startedAt: string;
@@ -24,10 +24,7 @@ type AnalyticsResponse = {
   journeyCount: number;
   averageDuration: number;
   totalDistance: number;
-  vehicleBreakdown: Record<
-    "CAR" | "MOTORCYCLE" | "BICYCLE" | "WALKING",
-    number
-  >;
+  vehicleBreakdown: Record<"CAR" | "MOTORCYCLE" | "TRUCK", number>;
   recentJourneys: RecentJourney[];
   hasAnyHistory: boolean;
   insight: string | null;
@@ -47,8 +44,7 @@ const VEHICLE_ROWS: {
 }[] = [
   { key: "CAR", icon: Car, label: "Car" },
   { key: "MOTORCYCLE", icon: Motorbike, label: "Motorcycle" },
-  { key: "BICYCLE", icon: Bike, label: "Bicycle" },
-  { key: "WALKING", icon: Footprints, label: "Walking" },
+  { key: "TRUCK", icon: Truck, label: "Truck" },
 ];
 
 function formatDuration(seconds: number): string {

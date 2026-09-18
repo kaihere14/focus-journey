@@ -12,8 +12,7 @@ import type { VehicleKey } from "@/config/vehicles";
 const VEHICLE_KEYS: [VehicleKey, ...VehicleKey[]] = [
   "car",
   "motorcycle",
-  "bicycle",
-  "walking",
+  "truck",
 ];
 
 const createSchema = z.object({

@@ -274,6 +274,8 @@ export const FocusMap = forwardRef<
   const onJourneyProgressRef = useRef(onJourneyProgress);
   const lastProgressReportRef = useRef(0);
   const mapReadyRef = useRef(false);
+  const hasInitialCenteredRef = useRef(false);
+  const userControllingCameraRef = useRef(false);
   const [styleKey, setStyleKey] = useState<MapboxStyleKey>("satellite");
   const [labelsEnabled, setLabelsEnabled] = useState(false);
   const [styleModalOpen, setStyleModalOpen] = useState(false);
@@ -307,7 +309,25 @@ export const FocusMap = forwardRef<
     map.on("load", () => {
       mapReadyRef.current = true;
       setMapReady(true);
+      if (currentCoordsRef.current && !hasInitialCenteredRef.current) {
+        hasInitialCenteredRef.current = true;
+        map.flyTo({
+          center: currentCoordsRef.current,
+          zoom: START_ZOOM,
+          duration: 1200,
+        });
+      }
     });
+
+    const markUserControlled = (e?: unknown) => {
+      if ((e as { originalEvent?: unknown } | undefined)?.originalEvent) {
+        userControllingCameraRef.current = true;
+      }
+    };
+    map.on("dragstart", markUserControlled);
+    map.on("zoomstart", markUserControlled);
+    map.on("rotatestart", markUserControlled);
+    map.on("pitchstart", markUserControlled);
 
     const markerEl = document.createElement("div");
     markerEl.className = "focus-map-marker";
@@ -342,6 +362,7 @@ export const FocusMap = forwardRef<
         const map = mapRef.current;
         if (map) {
           markerRef.current?.setLngLat(nextCoords).addTo(map);
+          hasInitialCenteredRef.current = true;
           map.flyTo({ center: nextCoords, zoom: START_ZOOM, duration: 1000 });
         }
 
@@ -371,6 +392,19 @@ export const FocusMap = forwardRef<
   }, [onJourneyProgress]);
 
   function locate() {
+    const map = mapRef.current;
+    const cam = cameraStateRef.current;
+    if (journeyRef.current && map && cam) {
+      userControllingCameraRef.current = false;
+      map.flyTo({
+        center: [cam.lng, cam.lat],
+        zoom: cam.zoom,
+        pitch: cam.pitch,
+        bearing: cam.bearing,
+        duration: 1000,
+      });
+      return;
+    }
     fetchCurrentLocation();
   }
 
@@ -380,6 +414,7 @@ export const FocusMap = forwardRef<
       journeyRafRef.current = null;
     }
     journeyRef.current = null;
+    userControllingCameraRef.current = false;
   }
 
   function runJourneyLoop() {
@@ -450,12 +485,14 @@ export const FocusMap = forwardRef<
           ? cam.bearing
           : lerpAngle(cam.bearing, targetBearing, CAMERA_BEARING_RATE);
 
-      map.jumpTo({
-        center: [cam.lng, cam.lat],
-        zoom: cam.zoom,
-        pitch: cam.pitch,
-        bearing: cam.bearing,
-      });
+      if (!userControllingCameraRef.current) {
+        map.jumpTo({
+          center: [cam.lng, cam.lat],
+          zoom: cam.zoom,
+          pitch: cam.pitch,
+          bearing: cam.bearing,
+        });
+      }
     }
 
     const now = Date.now();
@@ -582,6 +619,7 @@ export const FocusMap = forwardRef<
         bearing: map.getBearing(),
       };
       lastProgressReportRef.current = 0;
+      userControllingCameraRef.current = false;
       journeyRef.current = { startedAt, totalDurationMs };
       journeyRafRef.current = requestAnimationFrame(runJourneyLoop);
     },
@@ -611,6 +649,10 @@ export const FocusMap = forwardRef<
       currentCoordsRef.current = coords;
       const map = mapRef.current;
       if (map) markerRef.current?.setLngLat(coords).addTo(map);
+      if (map && mapReadyRef.current && !hasInitialCenteredRef.current) {
+        hasInitialCenteredRef.current = true;
+        map.flyTo({ center: coords, zoom: START_ZOOM, duration: 1200 });
+      }
     },
   }));
 
