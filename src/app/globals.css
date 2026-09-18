@@ -158,6 +158,19 @@
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6);
 }
 
+.focus-vehicle-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
+}
+
+.focus-vehicle-marker img {
+  display: block;
+  height: 46px;
+  width: auto;
+}
+
 @keyframes map-loader-drive {
   0% {
     transform: translateX(-10%);

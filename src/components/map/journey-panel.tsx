@@ -3,17 +3,20 @@
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import type { JourneyDestination, RouteSummary } from "./focus-map";
+import { cn } from "@/lib/utils";
 
 export function JourneyPanel({
   destination,
   route,
   onClose,
   onBeginJourney,
+  className,
 }: {
   destination: JourneyDestination;
   route: RouteSummary | null;
   onClose: () => void;
   onBeginJourney: () => void;
+  className?: string;
 }) {
   return (
     <motion.div
@@ -21,7 +24,10 @@ export function JourneyPanel({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 16 }}
       transition={{ duration: 0.25 }}
-      className="pointer-events-auto absolute bottom-6 left-6 w-[calc(100%-3rem)] max-w-sm rounded-2xl border border-white/15 bg-black/35 p-5 backdrop-blur-xl"
+      className={cn(
+        "pointer-events-auto rounded-2xl border border-white/15 bg-black/35 p-5 backdrop-blur-xl",
+        className,
+      )}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
