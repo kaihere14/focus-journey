@@ -56,11 +56,13 @@ export type FocusMapHandle = {
   showRoute: (
     destination: JourneyDestination,
     profile?: MapboxRoutingProfile,
+    origin?: [number, number],
   ) => Promise<RouteSummary | null>;
   clearRoute: () => void;
   setLabelMode: (mode: LabelMode) => void;
   zoomToCurrentLocation: () => void;
   resetToStart: () => void;
+  setCurrentLocation: (coords: [number, number]) => void;
   beginJourney: (
     vehicle: VehicleKey,
     startedAt: number,
@@ -228,8 +230,15 @@ export const FocusMap = forwardRef<
       coords: [number, number] | null,
     ) => void;
     onJourneyProgress?: (progress: number) => void;
+    // Only fall back to device GPS when there is no stored FocusJourney
+    // location yet (first-ever use, no journeys taken). Otherwise the
+    // caller drives the current position via `setCurrentLocation`.
+    autoLocate?: boolean;
   }
->(function FocusMap({ onLocationChange, onJourneyProgress }, ref) {
+>(function FocusMap(
+  { onLocationChange, onJourneyProgress, autoLocate = true },
+  ref,
+) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
@@ -345,8 +354,9 @@ export const FocusMap = forwardRef<
   }
 
   useEffect(() => {
-    fetchCurrentLocation();
-  }, []);
+    if (autoLocate) fetchCurrentLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoLocate]);
 
   useEffect(() => {
     onJourneyProgressRef.current = onJourneyProgress;
@@ -469,9 +479,9 @@ export const FocusMap = forwardRef<
   }
 
   useImperativeHandle(ref, () => ({
-    async showRoute(destination, profile = "driving") {
+    async showRoute(destination, profile = "driving", originOverride) {
       const map = mapRef.current;
-      const origin = currentCoordsRef.current;
+      const origin = originOverride ?? currentCoordsRef.current;
       if (!map || !origin || !mapReadyRef.current) return null;
 
       destinationMarkerRef.current?.setLngLat(destination.center).addTo(map);
@@ -588,6 +598,11 @@ export const FocusMap = forwardRef<
       const coords = currentCoordsRef.current;
       if (!map || !coords || !mapReadyRef.current) return;
       map.flyTo({ center: coords, zoom: START_ZOOM, duration: 1200 });
+    },
+    setCurrentLocation(coords) {
+      currentCoordsRef.current = coords;
+      const map = mapRef.current;
+      if (map) markerRef.current?.setLngLat(coords).addTo(map);
     },
   }));
 

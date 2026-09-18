@@ -24,6 +24,13 @@ model User {
   travelHistory TravelHistory[]
 }
 
+enum Vehicle {
+  CAR
+  MOTORCYCLE
+  BICYCLE
+  WALKING
+}
+
 model TravelHistory {
   id                String    @id @default(cuid())
   userId            String
@@ -33,6 +40,8 @@ model TravelHistory {
   toLatitude        Float
   toLongitude       Float
   toLocationName    String
+  vehicle           Vehicle
+  distance          Float
   startedAt         DateTime
   completedAt       DateTime
   duration          Int

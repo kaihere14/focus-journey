@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser, UserButton } from "@clerk/nextjs";
 import { AnimatePresence, motion } from "framer-motion";
+import { X } from "lucide-react";
 import {
   FocusMap,
   type FocusMapHandle,
@@ -12,6 +13,7 @@ import {
 } from "@/components/map/focus-map";
 import { DestinationSearch } from "@/components/map/destination-search";
 import { JourneyPanel } from "@/components/map/journey-panel";
+import { AnalyticsPanel } from "@/components/map/analytics-panel";
 import { VehicleSelector } from "@/components/map/vehicle-selector";
 import {
   DEFAULT_VEHICLE,
@@ -35,7 +37,14 @@ function getGreeting(hour: number) {
 
 type JourneyStep = "idle" | "searching" | "previewing" | "active";
 
+type CurrentLocation = {
+  lat: number;
+  lng: number;
+  name: string | null;
+};
+
 type ActiveSession = {
+  activeTravelHistoryId: string;
   startedAt: number;
   totalDurationMs: number;
   distanceKm: number;
@@ -44,6 +53,11 @@ type ActiveSession = {
 type SessionProgress = {
   progress: number;
   remainingMs: number;
+};
+
+type JourneyError = {
+  type: "start" | "finish" | "exit";
+  message: string;
 };
 
 function formatRemainingTime(ms: number) {
@@ -65,6 +79,8 @@ export default function HomePage() {
   const [greeting] = useState(() => getGreeting(new Date().getHours()));
   const [city, setCity] = useState<string | null>(null);
   const [coords, setCoords] = useState<[number, number] | null>(null);
+  const [currentLocation, setCurrentLocation] =
+    useState<CurrentLocation | null>(null);
   const [step, setStep] = useState<JourneyStep>("idle");
   const [destination, setDestination] = useState<JourneyDestination | null>(
     null,
@@ -74,7 +90,15 @@ export default function HomePage() {
   const [session, setSession] = useState<ActiveSession | null>(null);
   const [sessionProgress, setSessionProgress] =
     useState<SessionProgress | null>(null);
+  const [finishing, setFinishing] = useState(false);
+  const [journeyError, setJourneyError] = useState<JourneyError | null>(null);
+  const [autoLocate, setAutoLocate] = useState(false);
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
   const mapRef = useRef<FocusMapHandle>(null);
+  const hasDbLocationRef = useRef(false);
+  const locationInitRef = useRef(false);
+  const completionHandledRef = useRef(false);
+  const startingRef = useRef(false);
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
@@ -82,11 +106,54 @@ export default function HomePage() {
     }
   }, [isLoaded, isSignedIn, router]);
 
+  // FocusJourney's continuous-travel concept treats the database's stored
+  // User location as the source of truth for where the next journey starts.
+  // Browser geolocation only ever bootstraps that value once, on first use.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/user/location");
+        if (!res.ok || cancelled) return;
+        const data: {
+          latitude: number | null;
+          longitude: number | null;
+          locationName: string | null;
+        } = await res.json();
+        if (data.latitude !== null && data.longitude !== null) {
+          hasDbLocationRef.current = true;
+          setCurrentLocation({
+            lat: data.latitude,
+            lng: data.longitude,
+            name: data.locationName,
+          });
+          setCity(data.locationName);
+          setCoords([data.longitude, data.latitude]);
+          mapRef.current?.setCurrentLocation([data.longitude, data.latitude]);
+          mapRef.current?.resetToStart();
+        } else if (!cancelled) {
+          setAutoLocate(true);
+        }
+      } catch {
+        if (!cancelled) setAutoLocate(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   function handleJourneyProgress(progress: number) {
     if (!session) return;
     const remainingMs = Math.round(session.totalDurationMs * (1 - progress));
     setSessionProgress({ progress, remainingMs });
-    if (progress >= 1) stopJourneyAmbience();
+    if (progress >= 1) {
+      stopJourneyAmbience();
+      if (!completionHandledRef.current) {
+        completionHandledRef.current = true;
+        void completeJourney();
+      }
+    }
   }
 
   if (!isLoaded || !isSignedIn) {
@@ -95,10 +162,15 @@ export default function HomePage() {
 
   async function handleSelectDestination(next: JourneyDestination) {
     setDestination(next);
+    setJourneyError(null);
     setStep("previewing");
+    const origin = currentLocation
+      ? ([currentLocation.lng, currentLocation.lat] as [number, number])
+      : undefined;
     const summary = await mapRef.current?.showRoute(
       next,
       getVehicleOption(vehicle).profile,
+      origin,
     );
     setRoute(summary ?? null);
   }
@@ -106,23 +178,170 @@ export default function HomePage() {
   async function handleVehicleChange(next: VehicleKey) {
     setVehicle(next);
     if (!destination) return;
+    const origin = currentLocation
+      ? ([currentLocation.lng, currentLocation.lat] as [number, number])
+      : undefined;
     const summary = await mapRef.current?.showRoute(
       destination,
       getVehicleOption(next).profile,
+      origin,
     );
     setRoute(summary ?? null);
   }
 
-  function handleBeginJourney() {
-    if (!destination || !route) return;
-    const startedAt = Date.now();
-    const totalDurationMs = Math.max(1, route.durationMin) * 60 * 1000;
-    playJourneyStartSound(vehicle);
-    startJourneyAmbience(vehicle);
-    mapRef.current?.beginJourney(vehicle, startedAt, totalDurationMs);
-    setSession({ startedAt, totalDurationMs, distanceKm: route.distanceKm });
-    setSessionProgress({ progress: 0, remainingMs: totalDurationMs });
-    setStep("active");
+  async function handleBeginJourney() {
+    if (!destination || !route || !currentLocation || startingRef.current)
+      return;
+    startingRef.current = true;
+    setJourneyError(null);
+
+    const startedAtDate = new Date();
+    const distanceMeters = Math.round(route.distanceKm * 1000);
+
+    try {
+      const res = await fetch("/api/travel-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromLatitude: currentLocation.lat,
+          fromLongitude: currentLocation.lng,
+          fromLocationName: currentLocation.name ?? "Current location",
+          toLatitude: destination.center[1],
+          toLongitude: destination.center[0],
+          toLocationName: destination.name,
+          vehicle,
+          distance: distanceMeters,
+          startedAt: startedAtDate.toISOString(),
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to start journey");
+      const data: { id: string } = await res.json();
+
+      const startedAt = startedAtDate.getTime();
+      const totalDurationMs = Math.max(1, route.durationMin) * 60 * 1000;
+      completionHandledRef.current = false;
+      playJourneyStartSound(vehicle);
+      startJourneyAmbience(vehicle);
+      mapRef.current?.beginJourney(vehicle, startedAt, totalDurationMs);
+      setSession({
+        activeTravelHistoryId: data.id,
+        startedAt,
+        totalDurationMs,
+        distanceKm: route.distanceKm,
+      });
+      setSessionProgress({ progress: 0, remainingMs: totalDurationMs });
+      setStep("active");
+    } catch {
+      setJourneyError({
+        type: "start",
+        message: "Couldn't start the journey. Please try again.",
+      });
+    } finally {
+      startingRef.current = false;
+    }
+  }
+
+  async function completeJourney() {
+    if (!session) return;
+    setFinishing(true);
+    setJourneyError(null);
+    const elapsedSeconds = Math.max(
+      0,
+      Math.round((Date.now() - session.startedAt) / 1000),
+    );
+
+    try {
+      const res = await fetch(
+        `/api/travel-history/${session.activeTravelHistoryId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            durationSeconds: elapsedSeconds,
+            completed: true,
+          }),
+        },
+      );
+      if (!res.ok) throw new Error("Failed to complete journey");
+      const data: {
+        travelHistory: {
+          toLatitude: number;
+          toLongitude: number;
+          toLocationName: string;
+        };
+      } = await res.json();
+
+      const arrived = data.travelHistory;
+      setCurrentLocation({
+        lat: arrived.toLatitude,
+        lng: arrived.toLongitude,
+        name: arrived.toLocationName,
+      });
+      setCity(arrived.toLocationName);
+      setCoords([arrived.toLongitude, arrived.toLatitude]);
+      hasDbLocationRef.current = true;
+      mapRef.current?.setCurrentLocation([
+        arrived.toLongitude,
+        arrived.toLatitude,
+      ]);
+      resetToIdle();
+    } catch {
+      completionHandledRef.current = false;
+      setJourneyError({
+        type: "finish",
+        message: "Couldn't save your completed journey.",
+      });
+    } finally {
+      setFinishing(false);
+    }
+  }
+
+  async function handleExitJourney() {
+    if (!session || finishing) return;
+    setFinishing(true);
+    setJourneyError(null);
+    const elapsedSeconds = Math.max(
+      0,
+      Math.round((Date.now() - session.startedAt) / 1000),
+    );
+
+    try {
+      const res = await fetch(
+        `/api/travel-history/${session.activeTravelHistoryId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            durationSeconds: elapsedSeconds,
+            completed: false,
+          }),
+        },
+      );
+      if (!res.ok) throw new Error("Failed to exit journey");
+      resetToIdle();
+    } catch {
+      setJourneyError({
+        type: "exit",
+        message: "Couldn't save your exit. Please try again.",
+      });
+    } finally {
+      setFinishing(false);
+    }
+  }
+
+  function resetToIdle() {
+    stopJourneyAmbience();
+    mapRef.current?.endJourney();
+    mapRef.current?.clearRoute();
+    mapRef.current?.resetToStart();
+    completionHandledRef.current = false;
+    setDestination(null);
+    setRoute(null);
+    setVehicle(DEFAULT_VEHICLE);
+    setSession(null);
+    setSessionProgress(null);
+    setJourneyError(null);
+    setStep("idle");
   }
 
   function handleClosePreview() {
@@ -132,6 +351,7 @@ export default function HomePage() {
     setDestination(null);
     setRoute(null);
     setVehicle(DEFAULT_VEHICLE);
+    setJourneyError(null);
     setStep("idle");
   }
 
@@ -140,9 +360,35 @@ export default function HomePage() {
       <div style={{ position: "relative", height: "100%", width: "100%" }}>
         <FocusMap
           ref={mapRef}
+          autoLocate={autoLocate}
           onLocationChange={(nextCity, nextCoords) => {
+            if (hasDbLocationRef.current) return;
             setCity(nextCity);
             setCoords(nextCoords);
+            if (nextCoords && !locationInitRef.current) {
+              locationInitRef.current = true;
+              fetch("/api/user/location", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  latitude: nextCoords[1],
+                  longitude: nextCoords[0],
+                  locationName: nextCity ?? "Current location",
+                }),
+              })
+                .then((res) => (res.ok ? res.json() : null))
+                .then((data) => {
+                  if (data?.latitude != null && data?.longitude != null) {
+                    hasDbLocationRef.current = true;
+                    setCurrentLocation({
+                      lat: data.latitude,
+                      lng: data.longitude,
+                      name: data.locationName,
+                    });
+                  }
+                })
+                .catch(() => {});
+            }
           }}
           onJourneyProgress={handleJourneyProgress}
         />
@@ -160,6 +406,18 @@ export default function HomePage() {
 
         <div className="pointer-events-auto absolute top-4 right-4 flex items-center gap-2">
           {step === "active" && <JourneyAudioControl />}
+          {step === "active" && (
+            <button
+              type="button"
+              aria-label="Exit journey"
+              title="Exit journey"
+              onClick={handleExitJourney}
+              disabled={finishing}
+              className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white/80 backdrop-blur-md transition-colors hover:bg-black/60 hover:text-white disabled:opacity-50"
+            >
+              <X className="size-4" strokeWidth={1.75} />
+            </button>
+          )}
           <div className="rounded-full border border-white/10 bg-black/40 p-1 backdrop-blur-md">
             <UserButton
               appearance={{
@@ -172,7 +430,11 @@ export default function HomePage() {
         <AnimatePresence>
           {step === "searching" && (
             <DestinationSearch
-              proximity={coords}
+              proximity={
+                currentLocation
+                  ? [currentLocation.lng, currentLocation.lat]
+                  : coords
+              }
               onSelect={handleSelectDestination}
             />
           )}
@@ -192,6 +454,11 @@ export default function HomePage() {
                 onClose={handleClosePreview}
                 onBeginJourney={handleBeginJourney}
               />
+              {journeyError?.type === "start" && (
+                <p className="pointer-events-auto w-full rounded-xl border border-white/15 bg-black/50 px-4 py-2 text-center text-xs text-red-300 backdrop-blur-xl">
+                  {journeyError.message}
+                </p>
+              )}
             </div>
           )}
         </AnimatePresence>
@@ -225,12 +492,32 @@ export default function HomePage() {
                   )}
                 </p>
               </div>
+
+              {journeyError && (
+                <div className="pointer-events-auto absolute bottom-24 left-1/2 flex w-[calc(100%-3rem)] max-w-sm -translate-x-1/2 flex-col items-center gap-2 rounded-2xl border border-white/15 bg-black/50 p-4 text-center backdrop-blur-xl">
+                  <p className="text-sm text-white/80">
+                    {journeyError.message}
+                  </p>
+                  <button
+                    type="button"
+                    disabled={finishing}
+                    onClick={() =>
+                      journeyError.type === "exit"
+                        ? handleExitJourney()
+                        : completeJourney()
+                    }
+                    className="rounded-full bg-white px-5 py-2 text-xs font-semibold text-black shadow-lg disabled:opacity-50"
+                  >
+                    {finishing ? "Retrying…" : "Retry"}
+                  </button>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
 
-        {step === "idle" && (
-          <div className="pointer-events-none absolute bottom-8 left-6">
+        {step === "idle" && !isAnalyticsOpen && (
+          <div className="pointer-events-none absolute bottom-8 left-6 flex flex-col items-start gap-2">
             <button
               type="button"
               onClick={() => {
@@ -241,8 +528,21 @@ export default function HomePage() {
             >
               Start Journey
             </button>
+            <button
+              type="button"
+              onClick={() => setIsAnalyticsOpen(true)}
+              className="pointer-events-auto rounded-full border border-white/15 bg-black/35 px-6 py-2 text-xs font-medium text-white/75 backdrop-blur-md transition-colors hover:bg-black/50 hover:text-white"
+            >
+              Analytics
+            </button>
           </div>
         )}
+
+        <AnimatePresence>
+          {step === "idle" && isAnalyticsOpen && (
+            <AnalyticsPanel onClose={() => setIsAnalyticsOpen(false)} />
+          )}
+        </AnimatePresence>
       </div>
     </main>
   );
