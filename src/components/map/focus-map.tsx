@@ -234,9 +234,17 @@ export const FocusMap = forwardRef<
     // location yet (first-ever use, no journeys taken). Otherwise the
     // caller drives the current position via `setCurrentLocation`.
     autoLocate?: boolean;
+    // True while the caller is still checking the DB for a saved location.
+    // Keeps the loader up so the map never shows blank/unexplained.
+    locatingSavedLocation?: boolean;
   }
 >(function FocusMap(
-  { onLocationChange, onJourneyProgress, autoLocate = true },
+  {
+    onLocationChange,
+    onJourneyProgress,
+    autoLocate = true,
+    locatingSavedLocation = false,
+  },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -660,7 +668,10 @@ export const FocusMap = forwardRef<
         </div>
       </div>
 
-      <MapLoader visible={!mapReady} />
+      <MapLoader
+        visible={!mapReady || locatingSavedLocation}
+        label={!mapReady ? "Loading map…" : "Finding your location…"}
+      />
     </div>
   );
 });

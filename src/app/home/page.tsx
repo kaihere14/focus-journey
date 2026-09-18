@@ -93,6 +93,7 @@ export default function HomePage() {
   const [finishing, setFinishing] = useState(false);
   const [journeyError, setJourneyError] = useState<JourneyError | null>(null);
   const [autoLocate, setAutoLocate] = useState(false);
+  const [locatingSavedLocation, setLocatingSavedLocation] = useState(true);
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
   const mapRef = useRef<FocusMapHandle>(null);
   const hasDbLocationRef = useRef(false);
@@ -136,6 +137,8 @@ export default function HomePage() {
         }
       } catch {
         if (!cancelled) setAutoLocate(true);
+      } finally {
+        if (!cancelled) setLocatingSavedLocation(false);
       }
     })();
     return () => {
@@ -361,6 +364,7 @@ export default function HomePage() {
         <FocusMap
           ref={mapRef}
           autoLocate={autoLocate}
+          locatingSavedLocation={locatingSavedLocation}
           onLocationChange={(nextCity, nextCoords) => {
             if (hasDbLocationRef.current) return;
             setCity(nextCity);
