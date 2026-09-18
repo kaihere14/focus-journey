@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import type { JourneyDestination, RouteSummary } from "./focus-map";
 import { cn } from "@/lib/utils";
 
@@ -10,12 +10,14 @@ export function JourneyPanel({
   route,
   onClose,
   onBeginJourney,
+  starting = false,
   className,
 }: {
   destination: JourneyDestination;
   route: RouteSummary | null;
   onClose: () => void;
   onBeginJourney: () => void;
+  starting?: boolean;
   className?: string;
 }) {
   return (
@@ -44,18 +46,27 @@ export function JourneyPanel({
         </button>
       </div>
 
-      {route && (
+      {route ? (
         <p className="mt-3 text-sm text-white/70">
           {route.distanceKm} km · ~{formatDuration(route.durationMin)}
+        </p>
+      ) : (
+        <p className="mt-3 flex items-center gap-1.5 text-sm text-white/50">
+          <Loader2 className="size-3.5 animate-spin" strokeWidth={1.75} />
+          Calculating route…
         </p>
       )}
 
       <button
         type="button"
         onClick={onBeginJourney}
-        className="mt-4 w-full rounded-full bg-white px-6 py-3 text-sm font-semibold text-black shadow-lg transition-transform hover:scale-[1.01] active:scale-[0.98]"
+        disabled={!route || starting}
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-black shadow-lg transition-transform hover:scale-[1.01] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
       >
-        Begin Journey
+        {starting && (
+          <Loader2 className="size-4 animate-spin" strokeWidth={2} />
+        )}
+        {starting ? "Starting…" : "Begin Journey"}
       </button>
     </motion.div>
   );

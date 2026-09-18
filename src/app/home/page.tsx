@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser, UserButton } from "@clerk/nextjs";
 import { AnimatePresence, motion } from "framer-motion";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import {
   FocusMap,
   type FocusMapHandle,
@@ -91,6 +91,7 @@ export default function HomePage() {
   const [sessionProgress, setSessionProgress] =
     useState<SessionProgress | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [startingJourney, setStartingJourney] = useState(false);
   const [journeyError, setJourneyError] = useState<JourneyError | null>(null);
   const [autoLocate, setAutoLocate] = useState(false);
   const [locatingSavedLocation, setLocatingSavedLocation] = useState(true);
@@ -196,6 +197,7 @@ export default function HomePage() {
     if (!destination || !route || !currentLocation || startingRef.current)
       return;
     startingRef.current = true;
+    setStartingJourney(true);
     setJourneyError(null);
 
     const startedAtDate = new Date();
@@ -241,6 +243,7 @@ export default function HomePage() {
       });
     } finally {
       startingRef.current = false;
+      setStartingJourney(false);
     }
   }
 
@@ -419,7 +422,11 @@ export default function HomePage() {
               disabled={finishing}
               className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white/80 backdrop-blur-md transition-colors hover:bg-black/60 hover:text-white disabled:opacity-50"
             >
-              <X className="size-4" strokeWidth={1.75} />
+              {finishing ? (
+                <Loader2 className="size-4 animate-spin" strokeWidth={1.75} />
+              ) : (
+                <X className="size-4" strokeWidth={1.75} />
+              )}
             </button>
           )}
           <div className="rounded-full border border-white/10 bg-black/40 p-1 backdrop-blur-md">
@@ -457,6 +464,7 @@ export default function HomePage() {
                 route={route}
                 onClose={handleClosePreview}
                 onBeginJourney={handleBeginJourney}
+                starting={startingJourney}
               />
               {journeyError?.type === "start" && (
                 <p className="pointer-events-auto w-full rounded-xl border border-white/15 bg-black/50 px-4 py-2 text-center text-xs text-red-300 backdrop-blur-xl">

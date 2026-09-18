@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { MAPBOX_TOKEN } from "@/config/mapbox";
 import type { JourneyDestination } from "./focus-map";
 
@@ -22,6 +22,7 @@ export function DestinationSearch({
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeocodeFeature[]>([]);
+  const [searching, setSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -31,6 +32,7 @@ export function DestinationSearch({
       return;
     }
     debounceRef.current = setTimeout(async () => {
+      setSearching(true);
       const proximityParam = proximity
         ? `&proximity=${proximity[0]},${proximity[1]}`
         : "";
@@ -44,6 +46,8 @@ export function DestinationSearch({
         setResults(data?.features ?? []);
       } catch {
         setResults([]);
+      } finally {
+        setSearching(false);
       }
     }, 250);
     return () => {
@@ -66,12 +70,25 @@ export function DestinationSearch({
           onChange={(e) => {
             const value = e.target.value;
             setQuery(value);
-            if (value.trim().length < 2) setResults([]);
+            if (value.trim().length < 2) {
+              setResults([]);
+              setSearching(false);
+            }
           }}
           placeholder="Where are you going?"
           className="w-full bg-transparent text-sm text-white placeholder:text-white/50 focus:outline-none"
         />
-        <Search className="size-4 shrink-0 text-white/50" strokeWidth={1.75} />
+        {searching ? (
+          <Loader2
+            className="size-4 shrink-0 animate-spin text-white/50"
+            strokeWidth={1.75}
+          />
+        ) : (
+          <Search
+            className="size-4 shrink-0 text-white/50"
+            strokeWidth={1.75}
+          />
+        )}
       </div>
 
       {results.length > 0 && (

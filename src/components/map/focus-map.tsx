@@ -276,10 +276,12 @@ export const FocusMap = forwardRef<
   const mapReadyRef = useRef(false);
   const hasInitialCenteredRef = useRef(false);
   const userControllingCameraRef = useRef(false);
+  const locatingRef = useRef(false);
   const [styleKey, setStyleKey] = useState<MapboxStyleKey>("satellite");
   const [labelsEnabled, setLabelsEnabled] = useState(false);
   const [styleModalOpen, setStyleModalOpen] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+  const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -352,7 +354,9 @@ export const FocusMap = forwardRef<
   }, []);
 
   function fetchCurrentLocation() {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation || locatingRef.current) return;
+    locatingRef.current = true;
+    setLocating(true);
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { longitude, latitude } = position.coords;
@@ -375,9 +379,16 @@ export const FocusMap = forwardRef<
           onLocationChange?.(place ?? null, nextCoords);
         } catch {
           onLocationChange?.(null, nextCoords);
+        } finally {
+          locatingRef.current = false;
+          setLocating(false);
         }
       },
-      () => onLocationChange?.(null, null),
+      () => {
+        locatingRef.current = false;
+        setLocating(false);
+        onLocationChange?.(null, null);
+      },
       { enableHighAccuracy: true, timeout: 10000 },
     );
   }
@@ -668,6 +679,7 @@ export const FocusMap = forwardRef<
           icon={LocateFixed}
           label="Locate me"
           onClick={locate}
+          loading={locating}
           className="pointer-events-auto"
         />
         <div className="pointer-events-auto relative">
