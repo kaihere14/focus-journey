@@ -48,6 +48,33 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  --ease-b6: cubic-bezier(0.2, 0, 0, 1);
+  --text-small: 0.8125rem;
+  --text-small--line-height: 1.55;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.65;
+
+  --color-glow: var(--b6-glow);
+  --color-glow-strong: var(--b6-glow-strong);
+  --color-glow-secondary: var(--b6-glow-secondary);
+  --color-glow-secondary-strong: var(--b6-glow-secondary-strong);
+  --color-glow-destructive: var(--b6-glow-destructive);
+  --color-glow-destructive-strong: var(--b6-glow-destructive-strong);
+
+  --shadow-b6-glow-band: 0 0 0 2px var(--b6-primary);
+  --shadow-b6-glow-band-secondary: 0 0 0 2px var(--b6-secondary);
+  --shadow-b6-glow-band-destructive: 0 0 0 2px var(--b6-destructive);
+
+  --inset-shadow-b6-glow: inset 0 0 10px 0 var(--b6-glow);
+  --inset-shadow-b6-glow-strong: inset 0 0 20px 0 var(--b6-glow-strong);
+  --inset-shadow-b6-glow-secondary: inset 0 0 10px 0 var(--b6-glow-secondary);
+  --inset-shadow-b6-glow-secondary-strong: inset 0 0 20px 0
+    var(--b6-glow-secondary-strong);
+  --inset-shadow-b6-glow-destructive: inset 0 0 10px 0
+    var(--b6-glow-destructive);
+  --inset-shadow-b6-glow-destructive-strong: inset 0 0 20px 0
+    var(--b6-glow-destructive-strong);
 }
 
 :root {
@@ -83,6 +110,20 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  --b6-background: oklch(0.985 0.001 17.5);
+  --b6-primary: oklch(0.166 0.0034 17.5);
+  --b6-primary-foreground: oklch(0.985 0.001 17.5);
+  --b6-secondary: oklch(0.945 0.003 17.5);
+  --b6-secondary-foreground: oklch(0.2 0.004 17.5);
+  --b6-destructive: oklch(0.55 0.19 27);
+  --b6-glow: oklch(1 0 0 / 0.2);
+  --b6-glow-strong: oklch(1 0 0 / 0.4);
+  --b6-glow-secondary: oklch(0 0 0 / 0.08);
+  --b6-glow-secondary-strong: oklch(0 0 0 / 0.16);
+  --b6-glow-destructive: oklch(1 0 0 / 0.22);
+  --b6-glow-destructive-strong: oklch(1 0 0 / 0.4);
+  --b6-radius: 0.5rem;
 }
 
 .dark {
@@ -117,6 +158,19 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  --b6-background: oklch(0 0 0);
+  --b6-primary: oklch(0.97 0 0);
+  --b6-primary-foreground: oklch(0 0 0);
+  --b6-secondary: oklch(0.2 0 0);
+  --b6-secondary-foreground: oklch(0.95 0 0);
+  --b6-destructive: oklch(0.62 0.185 27);
+  --b6-glow: oklch(0 0 0 / 0.2);
+  --b6-glow-strong: oklch(0 0 0 / 0.3);
+  --b6-glow-secondary: oklch(1 0 0 / 0.1);
+  --b6-glow-secondary-strong: oklch(1 0 0 / 0.2);
+  --b6-glow-destructive: oklch(1 0 0 / 0.2);
+  --b6-glow-destructive-strong: oklch(1 0 0 / 0.35);
 }
 
 @layer base {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useClerk, useUser, UserButton } from "@clerk/nextjs";
@@ -15,18 +16,23 @@ import {
   CircleCheckBig,
   Heart,
 } from "lucide-react";
+import { GlowButton } from "@/components/ui/glow-button";
 
 export default function HeroSectionOne() {
   const router = useRouter();
   const { isLoaded, isSignedIn } = useUser();
   const clerk = useClerk();
+  const [isStarting, setIsStarting] = useState(false);
 
   function handleGetStarted() {
-    if (isLoaded && isSignedIn) {
+    if (isStarting || !isLoaded) return;
+    setIsStarting(true);
+    if (isSignedIn) {
       router.push("/home");
       return;
     }
     clerk.openSignIn({ forceRedirectUrl: "/home" });
+    setTimeout(() => setIsStarting(false), 600);
   }
 
   return (
@@ -51,12 +57,15 @@ export default function HeroSectionOne() {
           </p>
 
           <div className="mt-6 flex justify-center">
-            <button
+            <GlowButton
               onClick={handleGetStarted}
-              className="font-heading transform rounded-full cursor-pointer bg-black px-7 py-2.5 text-sm font-medium text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+              loading={isStarting}
+              loadingLabel="Starting"
+              size="lg"
+              className="rounded-full"
             >
               Get Started
-            </button>
+            </GlowButton>
           </div>
           <p className="mt-3 text-xs text-neutral-400">
             No credit card required.
