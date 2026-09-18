@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useClerk, useUser } from "@clerk/nextjs";
+import { useClerk, useUser, UserButton } from "@clerk/nextjs";
 import {
   ArrowUpRight,
   ArrowUpLeft,
@@ -31,7 +31,10 @@ export default function HeroSectionOne() {
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col">
-      <Navbar onGetStarted={handleGetStarted} />
+      <Navbar
+        onGetStarted={handleGetStarted}
+        isSignedIn={!!isLoaded && !!isSignedIn}
+      />
 
       <div className="relative overflow-hidden px-4 pt-10 pb-16 md:pt-16 md:pb-24">
         <HeroShapesLeft />
@@ -77,7 +80,13 @@ export default function HeroSectionOne() {
   );
 }
 
-const Navbar = ({ onGetStarted }: { onGetStarted: () => void }) => {
+const Navbar = ({
+  onGetStarted,
+  isSignedIn,
+}: {
+  onGetStarted: () => void;
+  isSignedIn: boolean;
+}) => {
   return (
     <nav className="flex w-full items-center justify-between px-4 py-6">
       <div className="flex items-center gap-2">
@@ -90,23 +99,31 @@ const Navbar = ({ onGetStarted }: { onGetStarted: () => void }) => {
       </div>
       <div className="flex items-center gap-6">
         <a
-          href="#features"
-          className="hidden text-sm text-neutral-600 hover:text-neutral-900 sm:inline dark:text-neutral-400 dark:hover:text-white cursor-pointer"
+          href="https://github.com/kaihere14/focus-journey"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="GitHub repository"
+          className="text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white cursor-pointer"
         >
-          Features
+          <svg
+            viewBox="0 0 24 24"
+            className="size-5"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M12 .5C5.73.5.5 5.73.5 12c0 5.09 3.29 9.4 7.86 10.93.58.11.79-.25.79-.56 0-.27-.01-1.17-.02-2.12-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.75 2.69 1.25 3.34.96.1-.75.4-1.25.73-1.54-2.56-.29-5.25-1.28-5.25-5.7 0-1.26.45-2.29 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.24 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.43-2.69 5.4-5.26 5.69.42.36.78 1.08.78 2.17 0 1.57-.01 2.83-.01 3.22 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12c0-6.27-5.23-11.5-11.5-11.5Z" />
+          </svg>
         </a>
-        <a
-          href="#pricing"
-          className="hidden text-sm text-neutral-600 hover:text-neutral-900 sm:inline dark:text-neutral-400 dark:hover:text-white cursor-pointer"
-        >
-          Pricing
-        </a>
-        <button
-          onClick={onGetStarted}
-          className="text-sm text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white cursor-pointer"
-        >
-          Sign In
-        </button>
+        {isSignedIn ? (
+          <UserButton />
+        ) : (
+          <button
+            onClick={onGetStarted}
+            className="text-sm text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white cursor-pointer"
+          >
+            Sign In
+          </button>
+        )}
       </div>
     </nav>
   );
