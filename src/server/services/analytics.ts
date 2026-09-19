@@ -1,4 +1,5 @@
 import { prisma } from "@/server/db/client";
+import { redis } from "@/server/redis/client";
 import type { Vehicle, Prisma } from "@/generated/prisma/client";
 
 export type AnalyticsRange = "daily" | "weekly" | "monthly" | "all";
@@ -167,7 +168,71 @@ function buildInsight(
   }
 }
 
+const CACHE_TTL_SECONDS = 30;
+
+function cacheKey(userId: string, range: AnalyticsRange, timeZone: string) {
+  return `analytics:${userId}:${range}:${timeZone}`;
+}
+
+function cacheKeysSetKey(userId: string) {
+  return `analytics:keys:${userId}`;
+}
+
+/**
+ * Drops every cached analytics response for a user. Called after any write
+ * that changes their travel history, so a completed/deleted journey shows up
+ * immediately instead of waiting out the TTL.
+ */
+export async function invalidateAnalyticsCache(userId: string): Promise<void> {
+  const setKey = cacheKeysSetKey(userId);
+  const keys = await redis.smembers(setKey);
+  if (keys.length === 0) return;
+  await redis.del(...keys, setKey);
+}
+
+async function getCachedAnalytics(
+  userId: string,
+  range: AnalyticsRange,
+  timeZone: string,
+): Promise<AnalyticsResult | null> {
+  const raw = await redis.get<string>(cacheKey(userId, range, timeZone));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AnalyticsResult;
+  } catch {
+    return null;
+  }
+}
+
+async function setCachedAnalytics(
+  userId: string,
+  range: AnalyticsRange,
+  timeZone: string,
+  result: AnalyticsResult,
+): Promise<void> {
+  const key = cacheKey(userId, range, timeZone);
+  const setKey = cacheKeysSetKey(userId);
+  await Promise.all([
+    redis.set(key, JSON.stringify(result), { ex: CACHE_TTL_SECONDS }),
+    redis.sadd(setKey, key),
+    redis.expire(setKey, CACHE_TTL_SECONDS * 10),
+  ]);
+}
+
 export async function getAnalytics(
+  userId: string,
+  range: AnalyticsRange,
+  timeZone: string,
+): Promise<AnalyticsResult> {
+  const cached = await getCachedAnalytics(userId, range, timeZone);
+  if (cached) return cached;
+
+  const result = await computeAnalytics(userId, range, timeZone);
+  await setCachedAnalytics(userId, range, timeZone, result);
+  return result;
+}
+
+async function computeAnalytics(
   userId: string,
   range: AnalyticsRange,
   timeZone: string,

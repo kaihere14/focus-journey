@@ -1,4 +1,5 @@
 import { prisma } from "@/server/db/client";
+import { invalidateAnalyticsCache } from "@/server/services/analytics";
 import type { Vehicle, TravelHistory } from "@/generated/prisma/client";
 import type { VehicleKey } from "@/config/vehicles";
 
@@ -28,10 +29,10 @@ export type CreateTravelHistoryInput = {
   startedAt: Date;
 };
 
-export function createTravelHistory(
+export async function createTravelHistory(
   input: CreateTravelHistoryInput,
 ): Promise<TravelHistory> {
-  return prisma.travelHistory.create({
+  const created = await prisma.travelHistory.create({
     data: {
       ...input,
       // Required by the schema; the record is "active" until this diverges
@@ -40,6 +41,8 @@ export function createTravelHistory(
       duration: 0,
     },
   });
+  await invalidateAnalyticsCache(input.userId);
+  return created;
 }
 
 export function listTravelHistoryForUser(
@@ -65,6 +68,9 @@ export async function deleteTravelHistoryForUser(
   const result = await prisma.travelHistory.deleteMany({
     where: { id, userId },
   });
+  if (result.count > 0) {
+    await invalidateAnalyticsCache(userId);
+  }
   return result.count > 0;
 }
 
@@ -108,10 +114,11 @@ export async function finalizeTravelHistory({
     if (result.count === 0) {
       throw new TravelHistoryAlreadyFinalizedError();
     }
+    await invalidateAnalyticsCache(userId);
     return prisma.travelHistory.findFirstOrThrow({ where: { id, userId } });
   }
 
-  return prisma.$transaction(async (tx) => {
+  const finalized = await prisma.$transaction(async (tx) => {
     const result = await tx.travelHistory.updateMany({
       where: { id, userId, duration: 0 },
       data: { completedAt, duration },
@@ -129,4 +136,6 @@ export async function finalizeTravelHistory({
     });
     return tx.travelHistory.findFirstOrThrow({ where: { id, userId } });
   });
+  await invalidateAnalyticsCache(userId);
+  return finalized;
 }
