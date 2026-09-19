@@ -16,6 +16,7 @@ type RecentJourney = {
   duration: number;
   startedAt: string;
   completedAt: string;
+  status: "COMPLETED" | "FAILED";
 };
 
 type AnalyticsResponse = {
@@ -273,9 +274,23 @@ export function AnalyticsPanel({ onClose }: { onClose: () => void }) {
                 <div className="mt-2 flex flex-col gap-3">
                   {data.recentJourneys.map((journey) => (
                     <div key={journey.id}>
-                      <p className="text-sm text-white/90">
-                        {journey.fromLocationName} → {journey.toLocationName}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-white/90">
+                          {journey.fromLocationName} → {journey.toLocationName}
+                        </p>
+                        <span
+                          className={cn(
+                            "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase",
+                            journey.status === "COMPLETED"
+                              ? "bg-emerald-400/15 text-emerald-300"
+                              : "bg-red-400/15 text-red-300",
+                          )}
+                        >
+                          {journey.status === "COMPLETED"
+                            ? "Success"
+                            : "Failed"}
+                        </span>
+                      </div>
                       <p className="text-xs text-white/50">
                         {formatDistance(journey.distance)} ·{" "}
                         {formatDuration(journey.duration)}

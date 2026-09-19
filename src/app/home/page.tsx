@@ -15,9 +15,12 @@ import { DestinationSearch } from "@/components/map/destination-search";
 import { JourneyPanel } from "@/components/map/journey-panel";
 import { AnalyticsPanel } from "@/components/map/analytics-panel";
 import { VehicleSelector } from "@/components/map/vehicle-selector";
+import { ResumeSessionModal } from "@/components/map/resume-session-modal";
 import {
   DEFAULT_VEHICLE,
   getVehicleOption,
+  vehicleEnumToKey,
+  type VehicleEnum,
   type VehicleKey,
 } from "@/config/vehicles";
 import { JourneyAudioControl } from "@/components/map/journey-audio-control";
@@ -60,6 +63,20 @@ type JourneyError = {
   message: string;
 };
 
+type PendingResume = {
+  id: string;
+  fromLatitude: number;
+  fromLongitude: number;
+  fromLocationName: string;
+  toLatitude: number;
+  toLongitude: number;
+  toLocationName: string;
+  vehicle: VehicleEnum;
+  distance: number;
+  startedAt: string;
+  plannedDurationSec: number | null;
+};
+
 function formatRemainingTime(ms: number) {
   const totalMinutes = Math.ceil(ms / 60000);
   const h = Math.floor(totalMinutes / 60);
@@ -96,6 +113,11 @@ export default function HomePage() {
   const [autoLocate, setAutoLocate] = useState(false);
   const [locatingSavedLocation, setLocatingSavedLocation] = useState(true);
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
+  const [checkingActiveSession, setCheckingActiveSession] = useState(true);
+  const [pendingResume, setPendingResume] = useState<PendingResume | null>(
+    null,
+  );
+  const [resumeBusy, setResumeBusy] = useState(false);
   const mapRef = useRef<FocusMapHandle>(null);
   const hasDbLocationRef = useRef(false);
   const locationInitRef = useRef(false);
@@ -146,6 +168,111 @@ export default function HomePage() {
       cancelled = true;
     };
   }, []);
+
+  // A refresh, crash, or closed tab leaves the started-but-never-finalized
+  // TravelHistory row behind as ACTIVE. Surface it so the user can resume
+  // or explicitly quit it — a new journey must never start on top of one
+  // that's still open, since that would orphan the old row for good.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/travel-history/active");
+        if (!res.ok || cancelled) return;
+        const data: { travelHistory: PendingResume | null } = await res.json();
+        if (data.travelHistory) setPendingResume(data.travelHistory);
+      } catch {
+        // Fail open: if the check errors, don't block the user from
+        // starting a journey. Worst case an orphaned ACTIVE row lingers,
+        // same as before this feature existed.
+      } finally {
+        if (!cancelled) setCheckingActiveSession(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleContinueResume() {
+    if (!pendingResume || resumeBusy) return;
+    setResumeBusy(true);
+
+    const origin: [number, number] = [
+      pendingResume.fromLongitude,
+      pendingResume.fromLatitude,
+    ];
+    const vehicleKey = vehicleEnumToKey(pendingResume.vehicle);
+    const destination: JourneyDestination = {
+      name: pendingResume.toLocationName,
+      placeName: pendingResume.toLocationName,
+      center: [pendingResume.toLongitude, pendingResume.toLatitude],
+    };
+    const startedAt = new Date(pendingResume.startedAt).getTime();
+    const totalDurationMs =
+      Math.max(1, pendingResume.plannedDurationSec ?? 0) * 1000;
+
+    setCurrentLocation({
+      lat: pendingResume.fromLatitude,
+      lng: pendingResume.fromLongitude,
+      name: pendingResume.fromLocationName,
+    });
+    setCity(pendingResume.fromLocationName);
+    setCoords(origin);
+    hasDbLocationRef.current = true;
+    mapRef.current?.setCurrentLocation(origin);
+
+    await mapRef.current?.showRoute(
+      destination,
+      getVehicleOption(vehicleKey).profile,
+      origin,
+    );
+
+    completionHandledRef.current = false;
+    startJourneyAmbience(vehicleKey);
+    mapRef.current?.beginJourney(vehicleKey, startedAt, totalDurationMs);
+    setVehicle(vehicleKey);
+    setDestination(destination);
+    setSession({
+      activeTravelHistoryId: pendingResume.id,
+      startedAt,
+      totalDurationMs,
+      distanceKm: pendingResume.distance / 1000,
+    });
+    const elapsed = Date.now() - startedAt;
+    setSessionProgress({
+      progress: Math.min(1, Math.max(0, elapsed / totalDurationMs)),
+      remainingMs: Math.max(0, totalDurationMs - elapsed),
+    });
+    setStep("active");
+    setPendingResume(null);
+    setResumeBusy(false);
+  }
+
+  async function handleQuitResume() {
+    if (!pendingResume || resumeBusy) return;
+    setResumeBusy(true);
+    const elapsedSeconds = Math.max(
+      0,
+      Math.round(
+        (Date.now() - new Date(pendingResume.startedAt).getTime()) / 1000,
+      ),
+    );
+
+    try {
+      await fetch(`/api/travel-history/${pendingResume.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          durationSeconds: elapsedSeconds,
+          completed: false,
+        }),
+      });
+    } finally {
+      setPendingResume(null);
+      setResumeBusy(false);
+    }
+  }
 
   function handleJourneyProgress(progress: number) {
     if (!session) return;
@@ -217,6 +344,7 @@ export default function HomePage() {
           vehicle,
           distance: distanceMeters,
           startedAt: startedAtDate.toISOString(),
+          plannedDurationSeconds: Math.max(1, route.durationMin) * 60,
         }),
       });
       if (!res.ok) throw new Error("Failed to start journey");
@@ -528,31 +656,45 @@ export default function HomePage() {
           )}
         </AnimatePresence>
 
-        {step === "idle" && !isAnalyticsOpen && (
-          <div className="pointer-events-none absolute bottom-8 left-6 flex flex-col items-start gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                mapRef.current?.zoomToCurrentLocation();
-                setStep("searching");
-              }}
-              className="pointer-events-auto rounded-full bg-white px-8 py-3 text-sm font-semibold text-black shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]"
-            >
-              Start Journey
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsAnalyticsOpen(true)}
-              className="pointer-events-auto rounded-full border border-white/15 bg-black/35 px-6 py-2 text-xs font-medium text-white/75 backdrop-blur-md transition-colors hover:bg-black/50 hover:text-white"
-            >
-              Analytics
-            </button>
-          </div>
-        )}
+        {step === "idle" &&
+          !isAnalyticsOpen &&
+          !checkingActiveSession &&
+          !pendingResume && (
+            <div className="pointer-events-none absolute bottom-8 left-6 flex flex-col items-start gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  mapRef.current?.zoomToCurrentLocation();
+                  setStep("searching");
+                }}
+                className="pointer-events-auto rounded-full bg-white px-8 py-3 text-sm font-semibold text-black shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Start Journey
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAnalyticsOpen(true)}
+                className="pointer-events-auto rounded-full border border-white/15 bg-black/35 px-6 py-2 text-xs font-medium text-white/75 backdrop-blur-md transition-colors hover:bg-black/50 hover:text-white"
+              >
+                Analytics
+              </button>
+            </div>
+          )}
 
         <AnimatePresence>
           {step === "idle" && isAnalyticsOpen && (
             <AnalyticsPanel onClose={() => setIsAnalyticsOpen(false)} />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {pendingResume && (
+            <ResumeSessionModal
+              toLocationName={pendingResume.toLocationName}
+              onContinue={handleContinueResume}
+              onQuit={handleQuitResume}
+              busy={resumeBusy}
+            />
           )}
         </AnimatePresence>
       </div>

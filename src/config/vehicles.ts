@@ -42,3 +42,15 @@ export function getVehicleOption(key: VehicleKey): VehicleOption {
     VEHICLE_OPTIONS.find((option) => option.key === key) ?? VEHICLE_OPTIONS[0]
   );
 }
+
+export type VehicleEnum = "CAR" | "MOTORCYCLE" | "TRUCK";
+
+const VEHICLE_ENUM_TO_KEY: Record<VehicleEnum, VehicleKey> = {
+  CAR: "car",
+  MOTORCYCLE: "motorcycle",
+  TRUCK: "truck",
+};
+
+export function vehicleEnumToKey(vehicle: VehicleEnum): VehicleKey {
+  return VEHICLE_ENUM_TO_KEY[vehicle];
+}

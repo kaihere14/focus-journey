@@ -13,6 +13,7 @@ export type RecentJourney = {
   duration: number;
   startedAt: Date;
   completedAt: Date;
+  status: "COMPLETED" | "FAILED";
 };
 
 export type AnalyticsResult = {
@@ -238,25 +239,37 @@ async function computeAnalytics(
   timeZone: string,
 ): Promise<AnalyticsResult> {
   const bounds = getRangeBounds(range, timeZone);
-  const where: Prisma.TravelHistoryWhereInput = bounds
-    ? { userId, startedAt: { gte: bounds.gte, lt: bounds.lt } }
-    : { userId };
+  // ACTIVE rows are still in flight (possibly orphaned by a refresh) and
+  // never count anywhere in analytics. COMPLETED vs FAILED (an early exit)
+  // is what "success"/"failed" tags in the recent-journeys list; only
+  // COMPLETED rows feed the aggregate totals below.
+  const finalizedWhere: Prisma.TravelHistoryWhereInput = bounds
+    ? {
+        userId,
+        status: { not: "ACTIVE" },
+        startedAt: { gte: bounds.gte, lt: bounds.lt },
+      }
+    : { userId, status: { not: "ACTIVE" } };
+  const completedWhere: Prisma.TravelHistoryWhereInput = {
+    ...finalizedWhere,
+    status: "COMPLETED",
+  };
 
   const [aggregate, vehicleGroups, recentJourneys, totalCount] =
     await Promise.all([
       prisma.travelHistory.aggregate({
-        where,
+        where: completedWhere,
         _sum: { duration: true, distance: true },
         _max: { duration: true },
         _count: { _all: true },
       }),
       prisma.travelHistory.groupBy({
         by: ["vehicle"],
-        where,
+        where: completedWhere,
         _count: { _all: true },
       }),
       prisma.travelHistory.findMany({
-        where,
+        where: finalizedWhere,
         orderBy: { completedAt: "desc" },
         take: 5,
         select: {
@@ -268,9 +281,12 @@ async function computeAnalytics(
           duration: true,
           startedAt: true,
           completedAt: true,
+          status: true,
         },
       }),
-      prisma.travelHistory.count({ where: { userId } }),
+      prisma.travelHistory.count({
+        where: { userId, status: { not: "ACTIVE" } },
+      }),
     ]);
 
   const journeyCount = aggregate._count._all;
@@ -292,7 +308,7 @@ async function computeAnalytics(
     averageDuration,
     totalDistance,
     vehicleBreakdown,
-    recentJourneys,
+    recentJourneys: recentJourneys as RecentJourney[],
     hasAnyHistory: totalCount > 0,
     insight: buildInsight(
       range,

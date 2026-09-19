@@ -27,6 +27,7 @@ export type CreateTravelHistoryInput = {
   vehicle: Vehicle;
   distance: number;
   startedAt: Date;
+  plannedDurationSec?: number;
 };
 
 export async function createTravelHistory(
@@ -35,14 +36,29 @@ export async function createTravelHistory(
   const created = await prisma.travelHistory.create({
     data: {
       ...input,
-      // Required by the schema; the record is "active" until this diverges
-      // from startedAt (see the duration:0 sentinel below).
+      status: "ACTIVE",
+      // Required by the schema; meaningless until finalizeTravelHistory
+      // overwrites them (status is what actually marks a row "active").
       completedAt: input.startedAt,
       duration: 0,
     },
   });
   await invalidateAnalyticsCache(input.userId);
   return created;
+}
+
+/**
+ * A user can have at most one journey in flight. Used on page load to
+ * detect an active session left behind by a refresh/crash so the client
+ * can offer to resume it instead of silently orphaning it.
+ */
+export function getActiveTravelHistoryForUser(
+  userId: string,
+): Promise<TravelHistory | null> {
+  return prisma.travelHistory.findFirst({
+    where: { userId, status: "ACTIVE" },
+    orderBy: { startedAt: "desc" },
+  });
 }
 
 export function listTravelHistoryForUser(
@@ -75,12 +91,11 @@ export async function deleteTravelHistoryForUser(
 }
 
 /**
- * Marks a journey as finished, either because it completed or because the
- * user exited early. `duration: 0` is the sentinel for "still active" (set
- * at creation), so a real finalization always clamps to at least 1 second
- * to keep that sentinel unambiguous, and the update itself is guarded by
- * `duration: 0` in its `where` clause so two concurrent requests can't both
- * finalize the same record.
+ * Marks a journey as finished: COMPLETED if it ran its full course, FAILED
+ * if the user exited early or it was abandoned by a refresh. Only counted
+ * ("success"/"failed") once finalized — an ACTIVE row never shows up in
+ * analytics. The update is guarded by `status: "ACTIVE"` in its `where`
+ * clause so two concurrent requests can't both finalize the same record.
  */
 export async function finalizeTravelHistory({
   id,
@@ -99,17 +114,18 @@ export async function finalizeTravelHistory({
   if (!existing) {
     throw new TravelHistoryNotFoundError();
   }
-  if (existing.duration !== 0) {
+  if (existing.status !== "ACTIVE") {
     throw new TravelHistoryAlreadyFinalizedError();
   }
 
   const completedAt = new Date();
   const duration = Math.max(1, Math.round(durationSeconds));
+  const status = completed ? "COMPLETED" : "FAILED";
 
   if (!completed) {
     const result = await prisma.travelHistory.updateMany({
-      where: { id, userId, duration: 0 },
-      data: { completedAt, duration },
+      where: { id, userId, status: "ACTIVE" },
+      data: { completedAt, duration, status },
     });
     if (result.count === 0) {
       throw new TravelHistoryAlreadyFinalizedError();
@@ -120,8 +136,8 @@ export async function finalizeTravelHistory({
 
   const finalized = await prisma.$transaction(async (tx) => {
     const result = await tx.travelHistory.updateMany({
-      where: { id, userId, duration: 0 },
-      data: { completedAt, duration },
+      where: { id, userId, status: "ACTIVE" },
+      data: { completedAt, duration, status },
     });
     if (result.count === 0) {
       throw new TravelHistoryAlreadyFinalizedError();

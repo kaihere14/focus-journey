@@ -30,22 +30,31 @@ enum Vehicle {
   TRUCK
 }
 
+enum JourneyStatus {
+  ACTIVE
+  COMPLETED
+  FAILED
+}
+
 model TravelHistory {
-  id                String    @id @default(cuid())
-  userId            String
-  fromLatitude      Float
-  fromLongitude     Float
-  fromLocationName  String
-  toLatitude        Float
-  toLongitude       Float
-  toLocationName    String
-  vehicle           Vehicle
-  distance          Float
-  startedAt         DateTime
-  completedAt       DateTime
-  duration          Int
+  id                 String        @id @default(cuid())
+  userId             String
+  fromLatitude       Float
+  fromLongitude      Float
+  fromLocationName   String
+  toLatitude         Float
+  toLongitude        Float
+  toLocationName     String
+  vehicle            Vehicle
+  distance           Float
+  status             JourneyStatus @default(ACTIVE)
+  plannedDurationSec Int?
+  startedAt          DateTime
+  completedAt        DateTime
+  duration           Int
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([userId, status])
 }

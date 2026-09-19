@@ -25,6 +25,7 @@ const createSchema = z.object({
   vehicle: z.enum(VEHICLE_KEYS),
   distance: z.number().positive(),
   startedAt: z.iso.datetime().optional(),
+  plannedDurationSeconds: z.number().int().positive().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
     vehicle: vehicleKeyToEnum(data.vehicle),
     distance: data.distance,
     startedAt,
+    plannedDurationSec: data.plannedDurationSeconds,
   });
 
   return NextResponse.json(
