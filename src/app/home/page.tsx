@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUser, UserButton } from "@clerk/nextjs";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, X } from "lucide-react";
+import { GlowButton } from "@/components/ui/glow-button";
 import {
   FocusMap,
   type FocusMapHandle,
@@ -638,18 +639,19 @@ export default function HomePage() {
                   <p className="text-sm text-white/80">
                     {journeyError.message}
                   </p>
-                  <button
-                    type="button"
-                    disabled={finishing}
+                  <GlowButton
+                    size="sm"
+                    loading={finishing}
+                    loadingLabel="Retrying"
                     onClick={() =>
                       journeyError.type === "exit"
                         ? handleExitJourney()
                         : completeJourney()
                     }
-                    className="rounded-full bg-white px-5 py-2 text-xs font-semibold text-black shadow-lg disabled:opacity-50"
+                    className="rounded-full"
                   >
                     {finishing ? "Retrying…" : "Retry"}
-                  </button>
+                  </GlowButton>
                 </div>
               )}
             </motion.div>
@@ -661,23 +663,24 @@ export default function HomePage() {
           !checkingActiveSession &&
           !pendingResume && (
             <div className="pointer-events-none absolute bottom-8 left-6 flex flex-col items-start gap-2">
-              <button
-                type="button"
+              <GlowButton
+                size="lg"
                 onClick={() => {
                   mapRef.current?.zoomToCurrentLocation();
                   setStep("searching");
                 }}
-                className="pointer-events-auto rounded-full bg-white px-8 py-3 text-sm font-semibold text-black shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                className="pointer-events-auto rounded-full"
               >
                 Start Journey
-              </button>
-              <button
-                type="button"
+              </GlowButton>
+              <GlowButton
+                variant="outline"
+                size="sm"
                 onClick={() => setIsAnalyticsOpen(true)}
-                className="pointer-events-auto rounded-full border border-white/15 bg-black/35 px-6 py-2 text-xs font-medium text-white/75 backdrop-blur-md transition-colors hover:bg-black/50 hover:text-white"
+                className="pointer-events-auto rounded-full border-white/15 bg-black/35 text-white/75 backdrop-blur-md hover:bg-black/50 hover:text-white"
               >
                 Analytics
-              </button>
+              </GlowButton>
             </div>
           )}
 

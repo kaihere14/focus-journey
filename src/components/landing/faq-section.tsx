@@ -39,7 +39,7 @@ export default function FaqSection() {
     <section className="mx-auto w-full max-w-7xl px-4 py-20 md:py-28">
       <div className="mx-auto max-w-3xl">
         <div className="flex flex-col items-center text-center">
-          <div className="flex size-24 rotate-6 items-center justify-center rounded-3xl border border-neutral-200 bg-gradient-to-b from-white to-neutral-100 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,1)] dark:border-neutral-700 dark:from-neutral-800 dark:to-neutral-900 dark:shadow-black/60">
+          <div className="flex size-24 rotate-6 items-center justify-center rounded-3xl border border-black/10 bg-gradient-to-b from-white to-neutral-100 shadow-[0_2px_4px_rgba(0,0,0,0.06),0_20px_40px_-15px_rgba(0,0,0,0.25),inset_0_0_0_1px_rgba(255,255,255,0.9),inset_0_1px_0_rgba(255,255,255,1),inset_2px_0_0_rgba(0,0,0,0.04),inset_-2px_0_0_rgba(0,0,0,0.04),inset_0_-3px_0_rgba(0,0,0,0.08)] dark:border-white/15 dark:from-neutral-800 dark:to-neutral-900 dark:shadow-[0_2px_4px_rgba(0,0,0,0.4),0_20px_40px_-15px_rgba(0,0,0,0.6),inset_0_0_0_1px_rgba(255,255,255,0.08),inset_0_1px_0_rgba(255,255,255,0.12),inset_2px_0_0_rgba(0,0,0,0.25),inset_-2px_0_0_rgba(0,0,0,0.25),inset_0_-3px_0_rgba(0,0,0,0.4)]">
             <Image
               src="/logo.png"
               alt=""

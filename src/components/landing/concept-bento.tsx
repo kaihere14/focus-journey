@@ -157,7 +157,7 @@ function BentoCard({ cell }: { cell: Cell }) {
       </div>
       <div className="mt-10 flex items-center gap-3">
         <span
-          className="flex size-10 shrink-0 items-center justify-center rounded-xl border-2 border-neutral-900 text-neutral-900 drop-shadow-sm"
+          className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-white/40 bg-gradient-to-b from-white/30 to-black/10 text-neutral-900 shadow-[0_1px_2px_rgba(0,0,0,0.1),0_6px_14px_-4px_rgba(0,0,0,0.3),inset_0_0_0_1px_rgba(255,255,255,0.45),inset_0_1px_0_rgba(255,255,255,0.6),inset_1px_0_0_rgba(0,0,0,0.08),inset_-1px_0_0_rgba(0,0,0,0.08),inset_0_-2px_0_rgba(0,0,0,0.15)] dark:border-white/20"
           style={{ backgroundColor: cell.color }}
         >
           <Icon className="size-4" strokeWidth={2} />
