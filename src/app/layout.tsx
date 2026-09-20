@@ -33,7 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <ClerkProvider>
       <html
         lang="en"
-        className={`${matter.variable} ${seasonMix.variable} ${geistMono.variable} h-full antialiased`}
+        className={`${matter.variable} ${seasonMix.variable} ${geistMono.variable} h-full scroll-smooth antialiased`}
       >
         <body className="min-h-full flex flex-col">
           {children}

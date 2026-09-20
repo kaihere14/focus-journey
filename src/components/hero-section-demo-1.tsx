@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useClerk, useUser, UserButton } from "@clerk/nextjs";
@@ -15,6 +15,7 @@ import {
   Shield,
   CircleCheckBig,
   Heart,
+  Play,
 } from "lucide-react";
 import { GlowButton } from "@/components/ui/glow-button";
 
@@ -74,20 +75,77 @@ export default function HeroSectionOne() {
       </div>
 
       <div className="relative z-10 mt-6 rounded-3xl border border-neutral-200 bg-neutral-100 p-4 shadow-md md:mx-4 dark:border-neutral-800 dark:bg-neutral-900">
-        <div className="w-full overflow-hidden rounded-xl border border-gray-300 dark:border-gray-700">
-          <Image
-            src="/hero2.png"
-            alt="FocusJourney app preview"
-            className="aspect-[16/9] h-auto w-full object-cover"
-            height={1000}
-            width={1000}
-            preload
-          />
-        </div>
+        <HeroPreview />
       </div>
     </div>
   );
 }
+
+const HeroPreview = () => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  function play() {
+    const video = videoRef.current;
+    if (!video) return;
+    video.play().catch(() => {});
+    setIsPlaying(true);
+  }
+
+  function pause() {
+    const video = videoRef.current;
+    if (!video) return;
+    video.pause();
+    video.currentTime = 0;
+    setIsPlaying(false);
+  }
+
+  return (
+    <div
+      id="hero-preview"
+      className="relative w-full overflow-hidden rounded-xl border border-gray-300 dark:border-gray-700"
+    >
+      <video
+        ref={videoRef}
+        src="/hero.mp4"
+        className="aspect-[16/9] h-auto w-full cursor-pointer object-cover"
+        onClick={pause}
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        aria-label="FocusJourney app preview"
+      />
+      <Image
+        src="/hero2.png"
+        alt="FocusJourney app preview"
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
+          isPlaying ? "pointer-events-none opacity-0" : "opacity-100"
+        }`}
+        height={1000}
+        width={1000}
+        preload
+      />
+      <div
+        className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
+          isPlaying ? "pointer-events-none opacity-0" : "opacity-100"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={play}
+          aria-label="Play video"
+          className="flex cursor-pointer items-center gap-2 rounded-full border border-white/40 bg-white/20 py-2.5 pr-5 pl-3 text-sm font-medium text-white shadow-lg backdrop-blur-md transition-transform hover:scale-105"
+        >
+          <span className="flex size-8 items-center justify-center rounded-full bg-white/90 text-neutral-900">
+            <Play className="ml-0.5 size-4" fill="currentColor" />
+          </span>
+          Play video
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const Navbar = ({
   onGetStarted,
