@@ -17,6 +17,7 @@ import { JourneyPanel } from "@/components/map/journey-panel";
 import { AnalyticsPanel } from "@/components/map/analytics-panel";
 import { VehicleSelector } from "@/components/map/vehicle-selector";
 import { ResumeSessionModal } from "@/components/map/resume-session-modal";
+import { JourneyCompleteModal } from "@/components/map/journey-complete-modal";
 import {
   DEFAULT_VEHICLE,
   getVehicleOption,
@@ -62,6 +63,12 @@ type SessionProgress = {
 type JourneyError = {
   type: "start" | "finish" | "exit";
   message: string;
+};
+
+type CompletedJourney = {
+  toLocationName: string;
+  distanceKm: number;
+  durationMs: number;
 };
 
 type PendingResume = {
@@ -119,6 +126,8 @@ export default function HomePage() {
     null,
   );
   const [resumeBusy, setResumeBusy] = useState(false);
+  const [completedJourney, setCompletedJourney] =
+    useState<CompletedJourney | null>(null);
   const mapRef = useRef<FocusMapHandle>(null);
   const hasDbLocationRef = useRef(false);
   const locationInitRef = useRef(false);
@@ -419,6 +428,11 @@ export default function HomePage() {
         arrived.toLongitude,
         arrived.toLatitude,
       ]);
+      setCompletedJourney({
+        toLocationName: arrived.toLocationName,
+        distanceKm: session.distanceKm,
+        durationMs: Date.now() - session.startedAt,
+      });
       resetToIdle();
     } catch {
       completionHandledRef.current = false;
@@ -661,7 +675,8 @@ export default function HomePage() {
         {step === "idle" &&
           !isAnalyticsOpen &&
           !checkingActiveSession &&
-          !pendingResume && (
+          !pendingResume &&
+          !completedJourney && (
             <div className="pointer-events-none absolute bottom-8 left-6 flex flex-col items-start gap-2">
               <GlowButton
                 size="lg"
@@ -687,6 +702,17 @@ export default function HomePage() {
         <AnimatePresence>
           {step === "idle" && isAnalyticsOpen && (
             <AnalyticsPanel onClose={() => setIsAnalyticsOpen(false)} />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {completedJourney && (
+            <JourneyCompleteModal
+              toLocationName={completedJourney.toLocationName}
+              distanceKm={completedJourney.distanceKm}
+              durationMs={completedJourney.durationMs}
+              onDismiss={() => setCompletedJourney(null)}
+            />
           )}
         </AnimatePresence>
 

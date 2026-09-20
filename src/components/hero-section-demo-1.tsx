@@ -83,7 +83,28 @@ export default function HeroSectionOne() {
 
 const HeroPreview = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const playButtonRef = useRef<HTMLButtonElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  // Move the play button toward the cursor without triggering React re-renders.
+  function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    const container = containerRef.current;
+    const button = playButtonRef.current;
+    if (!container || !button || isPlaying) return;
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left - rect.width / 2;
+    const y = e.clientY - rect.top - rect.height / 2;
+    button.style.transition = "transform 450ms cubic-bezier(0.16, 1, 0.3, 1)";
+    button.style.transform = `translate(${x}px, ${y}px)`;
+  }
+
+  function handleMouseLeave() {
+    const button = playButtonRef.current;
+    if (!button) return;
+    button.style.transition = "transform 600ms cubic-bezier(0.22, 1, 0.36, 1)";
+    button.style.transform = "translate(0px, 0px)";
+  }
 
   function play() {
     const video = videoRef.current;
@@ -103,6 +124,9 @@ const HeroPreview = () => {
   return (
     <div
       id="hero-preview"
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
       className="relative w-full overflow-hidden rounded-xl border border-gray-300 dark:border-gray-700"
     >
       <video
@@ -132,10 +156,11 @@ const HeroPreview = () => {
         }`}
       >
         <button
+          ref={playButtonRef}
           type="button"
           onClick={play}
           aria-label="Play video"
-          className="flex cursor-pointer items-center gap-2 rounded-full border border-white/40 bg-white/20 py-2.5 pr-5 pl-3 text-sm font-medium text-white shadow-lg backdrop-blur-md transition-transform hover:scale-105"
+          className="flex cursor-pointer items-center gap-2 rounded-full border border-white/40 bg-white/20 py-2.5 pr-5 pl-3 text-sm font-medium text-white shadow-lg backdrop-blur-md will-change-transform hover:scale-105"
         >
           <span className="flex size-8 items-center justify-center rounded-full bg-white/90 text-neutral-900">
             <Play className="ml-0.5 size-4" fill="currentColor" />
