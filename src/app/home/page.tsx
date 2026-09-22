@@ -83,7 +83,12 @@ type PendingResume = {
   distance: number;
   startedAt: string;
   plannedDurationSec: number | null;
+  elapsedActiveMs: number;
 };
+
+// How often an ACTIVE journey's progress is saved server-side, so a crash
+// (no clean pagehide) loses at most this much active time on resume.
+const CHECKPOINT_INTERVAL_MS = 20_000;
 
 function formatRemainingTime(ms: number) {
   const totalMinutes = Math.ceil(ms / 60000);
@@ -133,6 +138,55 @@ export default function HomePage() {
   const locationInitRef = useRef(false);
   const completionHandledRef = useRef(false);
   const startingRef = useRef(false);
+  // Active-time tracking: how a journey's real progress is measured now,
+  // instead of a raw wall-clock diff from startedAt. activeMsRef holds
+  // time banked from completed running segments; runningSinceRef is the
+  // wall-clock moment the current segment started (null while paused for
+  // an offline gap — a closed tab has no running segment to resume until
+  // the next page load re-seeds these from the server checkpoint).
+  const activeMsRef = useRef(0);
+  const runningSinceRef = useRef<number | null>(null);
+
+  function getElapsedActiveMs() {
+    return (
+      activeMsRef.current +
+      (runningSinceRef.current !== null
+        ? Date.now() - runningSinceRef.current
+        : 0)
+    );
+  }
+
+  function pauseActiveTracking() {
+    if (runningSinceRef.current !== null) {
+      activeMsRef.current += Date.now() - runningSinceRef.current;
+      runningSinceRef.current = null;
+    }
+    mapRef.current?.pauseJourney();
+  }
+
+  function resumeActiveTracking() {
+    if (runningSinceRef.current === null) {
+      runningSinceRef.current = Date.now();
+    }
+    mapRef.current?.resumeJourney(Date.now() - activeMsRef.current);
+  }
+
+  function sendCheckpoint(travelHistoryId: string, useBeacon = false) {
+    const body = JSON.stringify({ elapsedActiveMs: getElapsedActiveMs() });
+    if (useBeacon && typeof navigator.sendBeacon === "function") {
+      navigator.sendBeacon(
+        `/api/travel-history/${travelHistoryId}/checkpoint`,
+        new Blob([body], { type: "application/json" }),
+      );
+      return;
+    }
+    fetch(`/api/travel-history/${travelHistoryId}/checkpoint`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: useBeacon,
+    }).catch(() => {});
+  }
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
@@ -204,6 +258,42 @@ export default function HomePage() {
     };
   }, []);
 
+  // Only a genuine tab close/navigate-away (pagehide) or a real network
+  // drop (offline) should stop a journey's active-time clock. Switching
+  // tabs or backgrounding this one must NOT pause it — visibilitychange
+  // fires for both and was deliberately left out here.
+  useEffect(() => {
+    if (!session) return;
+    const travelHistoryId = session.activeTravelHistoryId;
+
+    function handlePageHide() {
+      sendCheckpoint(travelHistoryId, true);
+    }
+    function handleOffline() {
+      pauseActiveTracking();
+    }
+    function handleOnline() {
+      resumeActiveTracking();
+      sendCheckpoint(travelHistoryId);
+    }
+
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    const interval = setInterval(
+      () => sendCheckpoint(travelHistoryId),
+      CHECKPOINT_INTERVAL_MS,
+    );
+
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.activeTravelHistoryId]);
+
   async function handleContinueResume() {
     if (!pendingResume || resumeBusy) return;
     setResumeBusy(true);
@@ -218,9 +308,18 @@ export default function HomePage() {
       placeName: pendingResume.toLocationName,
       center: [pendingResume.toLongitude, pendingResume.toLatitude],
     };
-    const startedAt = new Date(pendingResume.startedAt).getTime();
     const totalDurationMs =
       Math.max(1, pendingResume.plannedDurationSec ?? 0) * 1000;
+    activeMsRef.current = Math.min(
+      pendingResume.elapsedActiveMs,
+      totalDurationMs,
+    );
+    runningSinceRef.current = Date.now();
+    // A synthetic startedAt (now, shifted back by the active time already
+    // banked) lets the map's elapsed = Date.now() - startedAt math keep
+    // working unchanged — it just starts counting from where the journey
+    // actually left off instead of from the original wall-clock start.
+    const startedAt = Date.now() - activeMsRef.current;
 
     setCurrentLocation({
       lat: pendingResume.fromLatitude,
@@ -249,10 +348,9 @@ export default function HomePage() {
       totalDurationMs,
       distanceKm: pendingResume.distance / 1000,
     });
-    const elapsed = Date.now() - startedAt;
     setSessionProgress({
-      progress: Math.min(1, Math.max(0, elapsed / totalDurationMs)),
-      remainingMs: Math.max(0, totalDurationMs - elapsed),
+      progress: Math.min(1, Math.max(0, activeMsRef.current / totalDurationMs)),
+      remainingMs: Math.max(0, totalDurationMs - activeMsRef.current),
     });
     setStep("active");
     setPendingResume(null);
@@ -262,11 +360,11 @@ export default function HomePage() {
   async function handleQuitResume() {
     if (!pendingResume || resumeBusy) return;
     setResumeBusy(true);
+    // Never resumed client-side, so there's no running segment to add —
+    // the last checkpointed active time is the true elapsed duration.
     const elapsedSeconds = Math.max(
       0,
-      Math.round(
-        (Date.now() - new Date(pendingResume.startedAt).getTime()) / 1000,
-      ),
+      Math.round(pendingResume.elapsedActiveMs / 1000),
     );
 
     try {
@@ -362,6 +460,8 @@ export default function HomePage() {
 
       const startedAt = startedAtDate.getTime();
       const totalDurationMs = Math.max(1, route.durationMin) * 60 * 1000;
+      activeMsRef.current = 0;
+      runningSinceRef.current = startedAt;
       completionHandledRef.current = false;
       playJourneyStartSound(vehicle);
       startJourneyAmbience(vehicle);
@@ -389,10 +489,7 @@ export default function HomePage() {
     if (!session) return;
     setFinishing(true);
     setJourneyError(null);
-    const elapsedSeconds = Math.max(
-      0,
-      Math.round((Date.now() - session.startedAt) / 1000),
-    );
+    const elapsedSeconds = Math.max(0, Math.round(getElapsedActiveMs() / 1000));
 
     try {
       const res = await fetch(
@@ -449,10 +546,7 @@ export default function HomePage() {
     if (!session || finishing) return;
     setFinishing(true);
     setJourneyError(null);
-    const elapsedSeconds = Math.max(
-      0,
-      Math.round((Date.now() - session.startedAt) / 1000),
-    );
+    const elapsedSeconds = Math.max(0, Math.round(getElapsedActiveMs() / 1000));
 
     try {
       const res = await fetch(
@@ -484,6 +578,8 @@ export default function HomePage() {
     mapRef.current?.clearRoute();
     mapRef.current?.resetToStart();
     completionHandledRef.current = false;
+    activeMsRef.current = 0;
+    runningSinceRef.current = null;
     setDestination(null);
     setRoute(null);
     setVehicle(DEFAULT_VEHICLE);

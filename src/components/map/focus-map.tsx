@@ -68,6 +68,11 @@ export type FocusMapHandle = {
     startedAt: number,
     totalDurationMs: number,
   ) => void;
+  // Freezes the animation loop in place (marker/camera untouched) without
+  // tearing down the journey, for an offline gap that shouldn't count as
+  // travel time. Pairs with resumeJourney, not beginJourney/endJourney.
+  pauseJourney: () => void;
+  resumeJourney: (startedAt: number) => void;
   endJourney: () => void;
 };
 
@@ -633,6 +638,19 @@ export const FocusMap = forwardRef<
       userControllingCameraRef.current = false;
       journeyRef.current = { startedAt, totalDurationMs };
       journeyRafRef.current = requestAnimationFrame(runJourneyLoop);
+    },
+    pauseJourney() {
+      if (journeyRafRef.current !== null) {
+        cancelAnimationFrame(journeyRafRef.current);
+        journeyRafRef.current = null;
+      }
+    },
+    resumeJourney(startedAt) {
+      if (!journeyRef.current) return;
+      journeyRef.current.startedAt = startedAt;
+      if (journeyRafRef.current === null) {
+        journeyRafRef.current = requestAnimationFrame(runJourneyLoop);
+      }
     },
     endJourney() {
       stopJourneyLoop();

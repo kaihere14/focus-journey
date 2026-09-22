@@ -49,6 +49,11 @@ model TravelHistory {
   distance           Float
   status             JourneyStatus @default(ACTIVE)
   plannedDurationSec Int?
+  // Active time actually spent in-tab, excluding gaps while the tab was
+  // closed or offline. Checkpointed periodically while ACTIVE; read back
+  // on resume instead of the wall-clock diff from startedAt, which would
+  // otherwise count time away as if the journey kept running unattended.
+  elapsedActiveMs    Int           @default(0)
   startedAt          DateTime
   completedAt        DateTime
   duration           Int

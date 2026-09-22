@@ -41,10 +41,34 @@ export async function createTravelHistory(
       // overwrites them (status is what actually marks a row "active").
       completedAt: input.startedAt,
       duration: 0,
+      elapsedActiveMs: 0,
     },
   });
   await invalidateAnalyticsCache(input.userId);
   return created;
+}
+
+/**
+ * Persists how much active (in-tab, online) time a journey has accrued so
+ * far. Called periodically and on tab-close while a journey is ACTIVE, so
+ * a resume can pick up from here instead of the wall-clock gap since
+ * startedAt. Guarded by status: "ACTIVE" so a stray late checkpoint (e.g.
+ * a beacon that lands after the journey was already finalized) can't
+ * resurrect a completed/failed row.
+ */
+export async function checkpointTravelHistory({
+  id,
+  userId,
+  elapsedActiveMs,
+}: {
+  id: string;
+  userId: string;
+  elapsedActiveMs: number;
+}): Promise<void> {
+  await prisma.travelHistory.updateMany({
+    where: { id, userId, status: "ACTIVE" },
+    data: { elapsedActiveMs: Math.round(elapsedActiveMs) },
+  });
 }
 
 /**
