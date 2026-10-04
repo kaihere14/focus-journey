@@ -18,6 +18,7 @@ import { AnalyticsPanel } from "@/components/map/analytics-panel";
 import { VehicleSelector } from "@/components/map/vehicle-selector";
 import { ResumeSessionModal } from "@/components/map/resume-session-modal";
 import { JourneyCompleteModal } from "@/components/map/journey-complete-modal";
+import { ExitJourneyModal } from "@/components/map/exit-journey-modal";
 import {
   DEFAULT_VEHICLE,
   getVehicleOption,
@@ -121,6 +122,7 @@ export default function HomePage() {
   const [sessionProgress, setSessionProgress] =
     useState<SessionProgress | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [confirmingExit, setConfirmingExit] = useState(false);
   const [startingJourney, setStartingJourney] = useState(false);
   const [journeyError, setJourneyError] = useState<JourneyError | null>(null);
   const [autoLocate, setAutoLocate] = useState(false);
@@ -657,7 +659,7 @@ export default function HomePage() {
               type="button"
               aria-label="Exit journey"
               title="Exit journey"
-              onClick={handleExitJourney}
+              onClick={() => setConfirmingExit(true)}
               disabled={finishing}
               className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white/80 backdrop-blur-md transition-colors hover:bg-black/60 hover:text-white disabled:opacity-50"
             >
@@ -808,6 +810,21 @@ export default function HomePage() {
               distanceKm={completedJourney.distanceKm}
               durationMs={completedJourney.durationMs}
               onDismiss={() => setCompletedJourney(null)}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {confirmingExit && step === "active" && session && (
+            <ExitJourneyModal
+              toLocationName={destination?.name ?? null}
+              progress={sessionProgress?.progress ?? null}
+              onCancel={() => setConfirmingExit(false)}
+              onConfirm={async () => {
+                await handleExitJourney();
+                setConfirmingExit(false);
+              }}
+              busy={finishing}
             />
           )}
         </AnimatePresence>
